@@ -14,12 +14,13 @@ AIOHTTP_VERSION = Version(aiohttp_version)
 
 def stream_reader_factory(loop=None) -> StreamReader:
     rh_params = signature(ResponseHandler.__init__).parameters
-    protocol = ResponseHandler(loop=loop) if 'loop' in rh_params else ResponseHandler()
+    protocol = ResponseHandler(loop=loop) if "loop" in rh_params else ResponseHandler()
 
     sr_params = signature(StreamReader.__init__).parameters
-    if 'loop' in sr_params:
+    if "loop" in sr_params:
         return StreamReader(protocol, limit=2**16, loop=loop)
     return StreamReader(protocol, limit=2**16)
+
 
 def merge_params(url: URL | str, params: dict | None = None) -> URL:
     url = URL(url)
