@@ -1,3 +1,4 @@
+from inspect import signature
 from re import Pattern
 from urllib.parse import urlencode  # noqa: F401
 
@@ -12,14 +13,13 @@ AIOHTTP_VERSION = Version(aiohttp_version)
 
 
 def stream_reader_factory(loop=None) -> StreamReader:
-    # The ``loop`` parameter was removed from ResponseHandler and StreamReader
-    # in aiohttp 3.10. Pass it only on older versions.
-    if AIOHTTP_VERSION >= Version("3.10.0"):
-        protocol = ResponseHandler()
-        return StreamReader(protocol, limit=2**16)
-    protocol = ResponseHandler(loop=loop)
-    return StreamReader(protocol, limit=2**16, loop=loop)
+    rh_params = signature(ResponseHandler.__init__).parameters
+    protocol = ResponseHandler(loop=loop) if 'loop' in rh_params else ResponseHandler()
 
+    sr_params = signature(StreamReader.__init__).parameters
+    if 'loop' in sr_params:
+        return StreamReader(protocol, limit=2**16, loop=loop)
+    return StreamReader(protocol, limit=2**16)
 
 def merge_params(url: URL | str, params: dict | None = None) -> URL:
     url = URL(url)
