@@ -5,11 +5,12 @@ from collections.abc import Coroutine, Generator
 from random import uniform
 from unittest.mock import patch
 
-from aiohttp import hdrs, http
+from aiohttp import hdrs, http, web
 from aiohttp.client import ClientSession
 from aiohttp.client_exceptions import ClientConnectionError, ClientResponseError
 from aiohttp.client_reqrep import ClientResponse
 from aiohttp.http_exceptions import HttpProcessingError
+from aiohttp.test_utils import TestServer
 from ddt import data, ddt, unpack
 from multidict import CIMultiDict
 from packaging.version import Version
@@ -368,32 +369,37 @@ class AIOResponsesTestCase(AsyncTestCase):
             assert str(exception_info.exception) == "Session is closed"
 
     async def test_address_as_instance_of_url_combined_with_pass_through(self):
-        external_api = "http://httpbin.org/status/201"
+        app = web.Application()
+        app.router.add_get("/status/201", lambda r: web.Response(status=201))
 
-        async def doit():
-            api_resp = await self.session.get(self.url)
-            ext_rep = await self.session.get(URL(external_api))
-            return api_resp, ext_rep
+        async with TestServer(app) as server:
+            external_api = str(server.make_url("/status/201"))
 
-        with aioresponses(passthrough=[external_api]) as m:
-            m.get(self.url, status=200)
-            api, ext = await doit()
+            async def doit():
+                api_resp = await self.session.get(self.url)
+                ext_rep = await self.session.get(URL(external_api))
+                return api_resp, ext_rep
 
-            self.assertEqual(api.status, 200)
-            self.assertEqual(ext.status, 201)
+            with aioresponses(passthrough=[external_api]) as m:
+                m.get(self.url, status=200)
+                api, ext = await doit()
+                self.assertEqual(api.status, 200)
+                self.assertEqual(ext.status, 201)
 
     async def test_pass_through_with_origin_params(self):
-        external_api = "http://httpbin.org/get"
+        app = web.Application()
+        app.router.add_get("/get", lambda r: web.Response(status=200))
 
-        async def doit(params):
-            ext_rep = await self.session.get(URL(external_api), params=params)
-            return ext_rep
+        async with TestServer(app) as server:
+            external_api = str(server.make_url("/get"))
 
-        with aioresponses(passthrough=[external_api]):
-            params = {"foo": "bar"}
-            ext = await doit(params=params)
-            self.assertEqual(ext.status, 200)
-            self.assertEqual(str(ext.url), "http://httpbin.org/get?foo=bar")
+            async def doit(params):
+                return await self.session.get(URL(external_api), params=params)
+
+            with aioresponses(passthrough=[external_api]):
+                ext = await doit(params={"foo": "bar"})
+                self.assertEqual(ext.status, 200)
+                self.assertIn("foo=bar", str(ext.url))
 
     @aioresponses()
     async def test_custom_response_class(self, m):
@@ -693,14 +699,16 @@ class AIOResponseRedirectTest(AsyncTestCase):
         self.assertEqual(str(response.history[0].url), url)
 
     async def test_pass_through_unmatched_requests(self):
-        matched_url = "https://matched_example.org"
-        unmatched_url = "https://httpbin.org/get"
-        params_unmatched = {"foo": "bar"}
+        app = web.Application()
+        app.router.add_get("/get", lambda r: web.Response(status=200))
 
-        with aioresponses(passthrough_unmatched=True) as m:
-            m.post(URL(matched_url), status=200)
-            mocked_response = await self.session.post(URL(matched_url))
-            response = await self.session.get(URL(unmatched_url), params=params_unmatched)
-            self.assertEqual(response.status, 200)
-            self.assertEqual(str(response.url), "https://httpbin.org/get?foo=bar")
-            self.assertEqual(mocked_response.status, 200)
+        async with TestServer(app) as server:
+            matched_url = "https://matched_example.org"
+            unmatched_url = str(server.make_url("/get"))
+
+            with aioresponses(passthrough_unmatched=True) as m:
+                m.post(URL(matched_url), status=200)
+                mocked_response = await self.session.post(URL(matched_url))
+                response = await self.session.get(URL(unmatched_url), params={"foo": "bar"})
+                self.assertEqual(mocked_response.status, 200)
+                self.assertEqual(response.status, 200)
