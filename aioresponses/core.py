@@ -2,7 +2,7 @@ import asyncio
 import copy
 import inspect
 import json
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from functools import wraps
 from re import Pattern
 from typing import Any, NamedTuple, TypeVar, cast
@@ -559,14 +559,15 @@ class aioresponses:
             raise ClientConnectionError(f"Connection refused: {method} {url}")
         self._responses.append(response)
 
-        raise_for_status = kwargs.get("raise_for_status")
+        raise_for_status: bool | Callable[[ClientResponse], Awaitable[None]] | None = kwargs.get("raise_for_status")
         if raise_for_status is None:
-            raise_for_status = getattr(orig_self, "_raise_for_status", False)
+            raise_for_status = cast(
+                "bool | Callable[[ClientResponse], Awaitable[None]]",
+                getattr(orig_self, "_raise_for_status", False),
+            )
 
         if callable(raise_for_status):
-            result = raise_for_status(response)
-            if inspect.isawaitable(result):
-                await result
+            await raise_for_status(response)
         elif raise_for_status:
             response.raise_for_status()
 
