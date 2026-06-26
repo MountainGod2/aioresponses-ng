@@ -7,9 +7,16 @@ from multidict import MultiDict
 from yarl import URL
 
 
+class _MockResponseHandler(ResponseHandler):
+    """ResponseHandler that no-ops pause_reading for mock contexts."""
+
+    def pause_reading(self) -> None:
+        pass
+
+
 def stream_reader_factory(loop=None) -> StreamReader:
     rh_params = signature(ResponseHandler.__init__).parameters
-    protocol = ResponseHandler(loop=loop) if "loop" in rh_params else ResponseHandler()
+    protocol = _MockResponseHandler(loop=loop) if "loop" in rh_params else _MockResponseHandler()
 
     sr_params = signature(StreamReader.__init__).parameters
     if "loop" in sr_params:
