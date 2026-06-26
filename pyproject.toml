@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "aioresponses-ng"
 version = "0.8.0"
 description = "Maintained fork of aioresponses with aiohttp compatibility fixes"
-readme = "README.md"
+dynamic = ["readme"]
 license = "MIT"
 authors = [{ name = "MountainGod2", email = "admin@reid.ca" }]
 keywords = ["aiohttp", "mock", "testing", "asyncio"]
@@ -95,7 +95,7 @@ fragments = [{ path = "README.md" }]
 [[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
 # Replace relative links with absolute links
 pattern = '\[(.+?)\]\(((?!https?://)\.?/?(\S+?))\)'
-replacement = '[\1](https://github.com/MountainGod2/cb-events/tree/main/\g<3>)'
+replacement = '[\1](https://github.com/MountainGod2/aioresponses-ng/tree/main/\g<3>)'
 
 [[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
 # Remove `> [!NOTE]` admonitions but keep the codeblocks
