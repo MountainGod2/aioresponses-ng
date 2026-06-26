@@ -1,5 +1,4 @@
 from inspect import signature
-from unittest.mock import Mock
 from urllib.parse import urlencode  # noqa: F401
 
 from aiohttp import StreamReader
