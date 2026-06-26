@@ -14,9 +14,10 @@ from aiohttp.test_utils import TestServer
 from ddt import data, ddt, unpack
 from multidict import CIMultiDict
 from packaging.version import Version
+from yarl import URL
 
 from aioresponses import CallbackResult, aioresponses
-from aioresponses.compat import AIOHTTP_VERSION, URL
+from aioresponses.core import AIOHTTP_VERSION
 
 from .base import AsyncTestCase, fail_on, skipIf
 
@@ -70,7 +71,7 @@ class AIOResponsesTestCase(AsyncTestCase):
     @unpack
     @data(("http://example.com", "/api?foo=bar#fragment"), ("http://example.com/", "/api?foo=bar#fragment"))
     @aioresponses()
-    @skipIf(condition=AIOHTTP_VERSION < Version("3.9.0"), reason="aiohttp must be >= 3.9.0")
+    @skipIf(condition=Version("3.9.0") > AIOHTTP_VERSION, reason="aiohttp must be >= 3.9.0")
     async def test_base_url(self, base_url, relative_url, m):
         m.get(self.url, status=200)
         self.session = ClientSession(base_url=base_url)
@@ -78,7 +79,7 @@ class AIOResponsesTestCase(AsyncTestCase):
         self.assertEqual(response.status, 200)
 
     @aioresponses()
-    @skipIf(condition=AIOHTTP_VERSION < Version("3.9.0"), reason="aiohttp must be >= 3.9.0")
+    @skipIf(condition=Version("3.9.0") > AIOHTTP_VERSION, reason="aiohttp must be >= 3.9.0")
     async def test_session_headers(self, m):
         m.get(self.url)
         self.session = ClientSession(headers={"Authorization": "Bearer foobar"})
@@ -612,7 +613,7 @@ class AIOResponsesRaiseForStatusSessionTestCase(AsyncTestCase):
 
     @aioresponses()
     @skipIf(
-        condition=AIOHTTP_VERSION < Version("3.9.0"), reason="aiohttp<3.9.0 does not support callable raise_for_status"
+        condition=Version("3.9.0") > AIOHTTP_VERSION, reason="aiohttp<3.9.0 does not support callable raise_for_status"
     )
     async def test_callable_raise_for_status(self, m):
         async def raise_for_status(response: ClientResponse):
