@@ -3,12 +3,12 @@
   "extends": ["config:best-practices"],
   "packageRules": [
     {
-      "matchDepTypes": ["devDependencies"],
+      "matchDepTypes": ["dependency-groups"],
       "matchUpdateTypes": ["minor", "patch"],
       "automerge": true
     },
     {
-      "matchPackageNames": ["aiohttp", "packaging"],
+      "matchDepTypes": ["project.dependencies"],
       "automerge": false
     }
   ]
