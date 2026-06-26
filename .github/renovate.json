@@ -8,7 +8,7 @@
       "automerge": true
     },
     {
-      "matchPackageNames": ["aiohttp", "yarl", "multidict", "packaging"],
+      "matchPackageNames": ["aiohttp", "packaging"],
       "automerge": false
     }
   ]
