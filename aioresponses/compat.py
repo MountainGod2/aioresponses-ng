@@ -1,15 +1,10 @@
 from inspect import signature
-from re import Pattern
 from urllib.parse import urlencode  # noqa: F401
 
 from aiohttp import StreamReader
-from aiohttp import __version__ as aiohttp_version
 from aiohttp.client_proto import ResponseHandler
 from multidict import MultiDict
-from packaging.version import Version
 from yarl import URL
-
-AIOHTTP_VERSION = Version(aiohttp_version)
 
 
 def stream_reader_factory(loop=None) -> StreamReader:
@@ -38,10 +33,7 @@ def normalize_url(url: URL | str) -> URL:
 
 
 __all__ = [
-    "URL",
-    "Pattern",
-    "AIOHTTP_VERSION",
     "merge_params",
-    "stream_reader_factory",
     "normalize_url",
+    "stream_reader_factory",
 ]

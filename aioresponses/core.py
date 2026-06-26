@@ -4,6 +4,7 @@ import inspect
 import json
 from collections.abc import Callable, Mapping, Sequence
 from functools import wraps
+from re import Pattern
 from typing import Any, NamedTuple, TypeVar, cast
 from unittest.mock import Mock, patch
 from uuid import uuid4
@@ -17,18 +18,19 @@ from aiohttp import (
     http,
     typedefs,
 )
+from aiohttp import __version__ as aiohttp_version
 from aiohttp.helpers import TimerNoop
 from multidict import CIMultiDict, CIMultiDictProxy, MultiDict, MultiDictProxy
 from packaging.version import Version
+from yarl import URL
 
 from .compat import (
-    AIOHTTP_VERSION,
-    URL,
-    Pattern,
     merge_params,
     normalize_url,
     stream_reader_factory,
 )
+
+AIOHTTP_VERSION = Version(aiohttp_version)
 
 _FuncT = TypeVar("_FuncT", bound=Callable[..., Any])
 
@@ -118,8 +120,7 @@ class RequestMatch:
         return self.match_func(url)
 
     def _build_raw_headers(self, headers: Mapping[str, str]) -> tuple:
-        """
-        Convert a multidict of headers to a tuple of tuples.
+        """Convert a multidict of headers to a tuple of tuples.
 
         Mimics the format of ClientResponse.
         """
@@ -219,7 +220,7 @@ class RequestMatch:
             return self.exception
 
         result = self if result is None else result
-        resp = self._build_response(
+        return self._build_response(
             url=url,
             method=result.method,
             request_headers=kwargs.get("headers"),
@@ -231,7 +232,6 @@ class RequestMatch:
             response_class=result.response_class,
             reason=result.reason,
         )
-        return resp
 
     def __repr__(self) -> str:
         return f"RequestMatch('{self.url_or_pattern}')"
@@ -297,7 +297,7 @@ class aioresponses:
                     args, kwargs = _pack_arguments(ctx, *args, **kwargs)
                     return f(*args, **kwargs)
 
-        return cast(_FuncT, wrapped)
+        return cast("_FuncT", wrapped)
 
     def clear(self) -> None:
         self._responses.clear()
@@ -465,9 +465,8 @@ class aioresponses:
             parent_classes = set(inspect.getmro(resp_or_exc))
             if {Exception, BaseException} & parent_classes:
                 return True
-        else:
-            if isinstance(resp_or_exc, (Exception, BaseException)):
-                return True
+        elif isinstance(resp_or_exc, (Exception, BaseException)):
+            return True
         return False
 
     async def match(
@@ -509,8 +508,7 @@ class aioresponses:
                     url = url.join(redirect_url)
                 method = "get"
                 continue
-            else:
-                break
+            break
 
         response._history = tuple(history)
         return response
@@ -524,7 +522,7 @@ class aioresponses:
         **kwargs: Any,
     ) -> ClientResponse:
         """Return mocked response object or raise connection error."""
-        data = kwargs.get("data", None)
+        data = kwargs.get("data")
         if data is not None and hasattr(data, "__aiter__"):
             chunks = []
             async for chunk in data:
@@ -534,7 +532,7 @@ class aioresponses:
         if orig_self.closed:
             raise RuntimeError("Session is closed")
 
-        if AIOHTTP_VERSION >= Version("3.9.0"):
+        if Version("3.9.0") <= AIOHTTP_VERSION:
             url = orig_self._build_url(url)
             url_origin = str(url)
             if orig_self.headers:
@@ -566,7 +564,9 @@ class aioresponses:
             raise_for_status = getattr(orig_self, "_raise_for_status", False)
 
         if callable(raise_for_status):
-            await raise_for_status(response)
+            result = raise_for_status(response)
+            if inspect.isawaitable(result):
+                await result
         elif raise_for_status:
             response.raise_for_status()
 
