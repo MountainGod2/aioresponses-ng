@@ -5,7 +5,7 @@ import json
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from functools import wraps
 from re import Pattern
-from typing import Any, NamedTuple, TypeVar, cast
+from typing import Any, NamedTuple, Self, TypeVar, cast
 from unittest.mock import Mock, patch
 from uuid import uuid4
 
@@ -46,7 +46,7 @@ class CallbackResult:
         headers: dict | None = None,
         response_class: type[ClientResponse] | None = None,
         reason: str | None = None,
-    ):
+    ) -> None:
         self.method = method
         self.status = status
         self.body = body
@@ -75,7 +75,7 @@ class RequestMatch:
         repeat: bool | int = False,
         reason: str | None = None,
         callback: Callable | None = None,
-    ):
+    ) -> None:
         if isinstance(url, Pattern):
             self.url_or_pattern = url
             self.match_func = self.match_regexp
@@ -249,7 +249,7 @@ class aioresponses:
     _responses: list[ClientResponse] | None = None
     requests: dict[tuple[str, URL], list[RequestCall]] | None = None
 
-    def __init__(self, **kwargs: Any):
+    def __init__(self, **kwargs: Any) -> None:
         self._param = kwargs.pop("param", None)
         self._passthrough = kwargs.pop("passthrough", [])
         self.passthrough_unmatched = kwargs.pop("passthrough_unmatched", False)
@@ -260,14 +260,14 @@ class aioresponses:
         )
         self.requests = {}
 
-    def __enter__(self) -> "aioresponses":
+    def __enter__(self) -> Self:
         self.start()
         return self
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         self.stop()
 
-    async def __aenter__(self) -> "aioresponses":
+    async def __aenter__(self) -> Self:
         self.start()
         return self
 
@@ -394,12 +394,10 @@ class aioresponses:
             raise AssertionError(msg)
 
     def assert_called_once(self) -> None:
-        """Assert that the mock was called only once."""
-        call_count = len(self.requests)
-        if call_count == 1:
-            call_count = len(list(self.requests.values())[0])
-        if not call_count == 1:
-            msg = f"Expected '{self.__class__.__name__}' to have been called once. Called {call_count} times."
+        """Assert that the mock was called exactly once across all URLs and methods."""
+        total = sum(len(calls) for calls in self.requests.values())
+        if total != 1:
+            msg = f"Expected '{self.__class__.__name__}' to have been called once. Called {total} times."
             raise AssertionError(msg)
 
     def assert_called_with(
@@ -416,7 +414,8 @@ class aioresponses:
         key = (method, url)
 
         if not self.requests.get(key):
-            raise AssertionError(f"{self._format_call_signature(url, *args, **kwargs, method=method)} call not found")
+            msg = f"{self._format_call_signature(url, *args, **kwargs, method=method)} call not found"
+            raise AssertionError(msg)
 
         actual = self.requests[key][-1]
         expected = self._build_request_call(method, *args, **kwargs)
@@ -429,35 +428,59 @@ class aioresponses:
             raise_error = actual != expected
 
         if raise_error:
-            raise AssertionError(f"{self._format_call_signature(actual)} != {self._format_call_signature(expected)}")
+            msg = f"{self._format_call_signature(actual)} != {self._format_call_signature(expected)}"
+            raise AssertionError(msg)
 
     def assert_any_call(
         self,
-        url: URL | str | Pattern,
+        url: "URL | str | Pattern",
         method: str = hdrs.METH_GET,
+        args_to_match: Sequence[str] | None = None,
         *args: Any,
         **kwargs: Any,
     ) -> None:
-        """Assert the mock has been called with the specified arguments at least once."""
+        """Assert that the mock was called with the specified arguments at least once.
+
+        Unlike ``assert_called_with``, the matching call need not be the most
+        recent one.
+        """
         url = normalize_url(merge_params(url, kwargs.get("params")))
         method = method.upper()
         key = (method, url)
 
         try:
-            self.requests[key]
+            request_list = self.requests[key]
         except KeyError as exc:
-            expected_string = self._format_call_signature(
-                url,
-                *args,
-                **kwargs,
-                method=method,
-            )
-            raise AssertionError(f"{expected_string} call not found") from exc
+            expected_string = self._format_call_signature(url, *args, method=method, **kwargs)
+            msg = f"{expected_string} call not found"
+            raise AssertionError(msg) from exc
 
-    def assert_called_once_with(self, *args: Any, **kwargs: Any) -> None:
+        expected = self._build_request_call(method, *args, **kwargs)
+        for actual in request_list:
+            if args_to_match is not None:
+                match = not any(
+                    arg not in actual.kwargs or actual.kwargs[arg] != expected.kwargs[arg] for arg in args_to_match
+                )
+            else:
+                match = actual == expected
+            if match:
+                return
+
+        expected_string = self._format_call_signature(url, *args, method=method, **kwargs)
+        msg = f"{expected_string} call not found"
+        raise AssertionError(msg)
+
+    def assert_called_once_with(
+        self,
+        url: URL | str | Pattern,
+        method: str = hdrs.METH_GET,
+        args_to_match: Sequence[str] | None = None,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
         """Assert that the mock was called exactly once with the specified arguments."""
         self.assert_called_once()
-        self.assert_called_with(*args, **kwargs)
+        self.assert_called_with(url, method, args_to_match, *args, **kwargs)
 
     @staticmethod
     def is_exception(resp_or_exc: ClientResponse | Exception) -> bool:
@@ -502,10 +525,7 @@ class aioresponses:
                     break
                 history.append(response)
                 redirect_url = URL(response.headers[hdrs.LOCATION])
-                if redirect_url.is_absolute():
-                    url = redirect_url
-                else:
-                    url = url.join(redirect_url)
+                url = redirect_url if redirect_url.is_absolute() else url.join(redirect_url)
                 method = "get"
                 continue
             break
@@ -524,13 +544,12 @@ class aioresponses:
         """Return mocked response object or raise connection error."""
         data = kwargs.get("data")
         if data is not None and hasattr(data, "__aiter__"):
-            chunks = []
-            async for chunk in data:
-                chunks.append(chunk)
+            chunks = [chunk async for chunk in data]
             kwargs["data"] = b"".join(chunks)
 
         if orig_self.closed:
-            raise RuntimeError("Session is closed")
+            msg = "Session is closed"
+            raise RuntimeError(msg)
 
         if Version("3.9.0") <= AIOHTTP_VERSION:
             url = orig_self._build_url(url)
@@ -556,7 +575,8 @@ class aioresponses:
         if response is None:
             if self.passthrough_unmatched:
                 return await self.patcher.temp_original(orig_self, method, url_origin, *args, **kwargs)
-            raise ClientConnectionError(f"Connection refused: {method} {url}")
+            msg = f"Connection refused: {method} {url}"
+            raise ClientConnectionError(msg)
         self._responses.append(response)
 
         raise_for_status: bool | Callable[[ClientResponse], Awaitable[None]] | None = kwargs.get("raise_for_status")
