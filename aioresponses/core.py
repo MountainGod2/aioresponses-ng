@@ -384,7 +384,7 @@ class aioresponses:
     def assert_not_called(self) -> None:
         """Assert that the mock was never called."""
         if len(self.requests) != 0:
-            msg = f"Expected '{self.__class__.__name__}' to not have been called. Called {len(self._responses)} times."
+            msg = f"Expected '{self.__class__.__name__}' to not have been called. Called {len(self.requests)} times."
             raise AssertionError(msg)
 
     def assert_called(self) -> None:
