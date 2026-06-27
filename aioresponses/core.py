@@ -5,7 +5,7 @@ import json
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from functools import wraps
 from re import Pattern
-from typing import Any, NamedTuple, Self, TypeVar, cast
+from typing import Any, NamedTuple, TypeVar, cast
 from unittest.mock import Mock, patch
 from uuid import uuid4
 
@@ -260,14 +260,14 @@ class aioresponses:
         )
         self.requests = {}
 
-    def __enter__(self) -> Self:
+    def __enter__(self):
         self.start()
         return self
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         self.stop()
 
-    async def __aenter__(self) -> Self:
+    async def __aenter__(self):
         self.start()
         return self
 
