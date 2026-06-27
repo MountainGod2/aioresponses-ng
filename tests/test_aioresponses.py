@@ -487,6 +487,34 @@ class AIOResponsesTestCase(AsyncTestCase):
         assert data == body
 
     @aioresponses()
+    async def test_callback_receives_json_kwarg(self, m):
+        captured: list[dict] = []
+
+        def callback(url, **kwargs):
+            captured.append(kwargs)
+            return CallbackResult(body=b"ok")
+
+        m.post(self.url, callback=callback)
+        await self.session.post(self.url, json={"x": 1, "y": "hello"})
+
+        self.assertEqual(len(captured), 1)
+        self.assertEqual(captured[0]["json"], {"x": 1, "y": "hello"})
+
+    @aioresponses()
+    async def test_callback_receives_data_kwarg(self, m):
+        captured: list[dict] = []
+
+        def callback(url, **kwargs):
+            captured.append(kwargs)
+            return CallbackResult(body=b"ok")
+
+        m.post(self.url, callback=callback)
+        await self.session.post(self.url, data=b"raw payload")
+
+        self.assertEqual(len(captured), 1)
+        self.assertEqual(captured[0]["data"], b"raw payload")
+
+    @aioresponses()
     def test_assert_not_called(self, m: aioresponses):
         m.get(self.url)
         m.assert_not_called()
@@ -537,6 +565,20 @@ class AIOResponsesTestCase(AsyncTestCase):
             await self.session.get(self.url)
 
     @aioresponses()
+    async def test_pattern_repeat_integer_exhausted(self, m: aioresponses):
+        pattern = re.compile(r"^http://example\.com/api.*$")
+        m.get(pattern, status=200, repeat=2)
+
+        response = await self.session.get(self.url)
+        self.assertEqual(response.status, 200)
+
+        response = await self.session.get(self.url)
+        self.assertEqual(response.status, 200)
+
+        with self.assertRaises(ClientConnectionError):
+            await self.session.get(self.url)
+
+    @aioresponses()
     async def test_assert_any_call(self, m: aioresponses):
         http_bin_url = "http://httpbin.org"
         m.get(self.url)
@@ -556,6 +598,21 @@ class AIOResponsesTestCase(AsyncTestCase):
         m.assert_any_call(self.url)
         with self.assertRaises(AssertionError):
             m.assert_any_call(http_bin_url)
+
+    @aioresponses()
+    async def test_assert_any_call_with_params(self, m: aioresponses):
+        base_url = "http://example.com/search"
+        full_url = "http://example.com/search?q=aiohttp"
+        m.get(full_url, status=200)
+
+        await self.session.get(base_url, params={"q": "aiohttp"})
+
+        # Should succeed when params are given separately
+        m.assert_any_call(base_url, params={"q": "aiohttp"})
+
+        # Should fail when the bare URL (without params) is used
+        with self.assertRaises(AssertionError):
+            m.assert_any_call(base_url)
 
     @aioresponses()
     async def test_exception_requests_are_tracked(self, mocked):
@@ -587,8 +644,6 @@ class AIOResponsesTestCase(AsyncTestCase):
 
 
 class AIOResponsesRaiseForStatusSessionTestCase(AsyncTestCase):
-    """Test case for sessions with raise_for_status=True."""
-
     async def setup(self):
         self.url = "http://example.com/api?foo=bar#fragment"
         self.session = ClientSession(raise_for_status=True)
@@ -713,3 +768,188 @@ class AIOResponseRedirectTest(AsyncTestCase):
                 response = await self.session.get(URL(unmatched_url), params={"foo": "bar"})
                 self.assertEqual(mocked_response.status, 200)
                 self.assertEqual(response.status, 200)
+
+
+class AIOResponsesAssertionTestCase(AsyncTestCase):
+    async def setup(self):
+        self.url = "http://example.com/api"
+        self.session = ClientSession()
+
+    async def teardown(self):
+        close_result = self.session.close()
+        if close_result is not None:
+            await close_result
+
+    async def test_assert_called_with_json_match(self):
+        with aioresponses() as m:
+            m.post(self.url, status=200)
+            await self.session.post(self.url, json={"key": "value", "count": 3})
+
+            m.assert_called_with(
+                self.url,
+                method="POST",
+                args_to_match=["json"],
+                json={"key": "value", "count": 3},
+            )
+
+    async def test_assert_called_with_json_mismatch(self):
+        with aioresponses() as m:
+            m.post(self.url, status=200)
+            await self.session.post(self.url, json={"key": "actual"})
+
+            with self.assertRaises(AssertionError):
+                m.assert_called_with(
+                    self.url,
+                    method="POST",
+                    args_to_match=["json"],
+                    json={"key": "expected"},
+                )
+
+    async def test_assert_called_with_data_match(self):
+        payload = b"raw request body"
+        with aioresponses() as m:
+            m.post(self.url, status=200)
+            await self.session.post(self.url, data=payload)
+
+            m.assert_called_with(
+                self.url,
+                method="POST",
+                args_to_match=["data"],
+                data=payload,
+            )
+
+    async def test_assert_called_with_data_mismatch(self):
+        with aioresponses() as m:
+            m.post(self.url, status=200)
+            await self.session.post(self.url, data=b"actual body")
+
+            with self.assertRaises(AssertionError):
+                m.assert_called_with(
+                    self.url,
+                    method="POST",
+                    args_to_match=["data"],
+                    data=b"expected body",
+                )
+
+    async def test_assert_called_with_headers_match(self):
+        headers = {"X-Custom-Header": "test-value", "X-Request-Id": "abc123"}
+        with aioresponses() as m:
+            m.get(self.url, status=200)
+            await self.session.get(self.url, headers=headers)
+
+            m.assert_called_with(
+                self.url,
+                args_to_match=["headers"],
+                headers=headers,
+            )
+
+    async def test_assert_called_with_headers_mismatch(self):
+        with aioresponses() as m:
+            m.get(self.url, status=200)
+            await self.session.get(self.url, headers={"X-Custom": "actual"})
+
+            with self.assertRaises(AssertionError):
+                m.assert_called_with(
+                    self.url,
+                    args_to_match=["headers"],
+                    headers={"X-Custom": "expected"},
+                )
+
+    async def test_assert_called_with_multiple_args_to_match(self):
+        with aioresponses() as m:
+            m.post(self.url, status=200)
+            await self.session.post(
+                self.url,
+                json={"a": 1},
+                headers={"X-Trace": "xyz"},
+            )
+
+            # Both match — should pass.
+            m.assert_called_with(
+                self.url,
+                method="POST",
+                args_to_match=["json", "headers"],
+                json={"a": 1},
+                headers={"X-Trace": "xyz"},
+            )
+
+            # json matches but headers differ — should fail.
+            with self.assertRaises(AssertionError):
+                m.assert_called_with(
+                    self.url,
+                    method="POST",
+                    args_to_match=["json", "headers"],
+                    json={"a": 1},
+                    headers={"X-Trace": "wrong"},
+                )
+
+    async def test_assert_called_with_wrong_method(self):
+        with aioresponses() as m:
+            m.get(self.url, status=200)
+            await self.session.get(self.url)
+
+            # The request was GET; asserting POST should fail.
+            with self.assertRaises(AssertionError):
+                m.assert_called_with(self.url, method="POST")
+
+    async def test_assert_called_once_zero_requests(self):
+        with aioresponses() as m:
+            m.get(self.url, status=200)
+            # No request is actually made.
+            with self.assertRaises(AssertionError):
+                m.assert_called_once()
+
+    async def test_assert_called_once_multiple_distinct_urls(self):
+        other_url = "http://other.example.com/"
+        with aioresponses() as m:
+            m.get(self.url, status=200)
+            m.get(other_url, status=200)
+            await self.session.get(self.url)
+            await self.session.get(other_url)
+
+            with self.assertRaises(AssertionError):
+                m.assert_called_once()
+
+    async def test_assert_not_called_message_reflects_request_count(self):
+        with aioresponses() as m:
+            m.get(self.url, exception=ValueError("boom"))
+
+            with self.assertRaises(ValueError):
+                await self.session.get(self.url)
+
+            with self.assertRaises(AssertionError) as cm:
+                m.assert_not_called()
+
+            self.assertIn("Called 1", str(cm.exception))
+
+    async def test_clear_preserves_requests(self):
+        with aioresponses() as m:
+            m.get(self.url, status=200)
+            await self.session.get(self.url)
+
+            key = ("GET", URL(self.url))
+            self.assertIn(key, m.requests)
+            self.assertEqual(len(m.requests[key]), 1)
+
+            m.clear()
+
+            # Matches and buffered responses are gone.
+            self.assertEqual(m._matches, {})
+            self.assertEqual(m._responses, [])
+
+            # But the recorded request history is preserved.
+            self.assertIn(key, m.requests)
+            self.assertEqual(len(m.requests[key]), 1)
+
+    async def test_clear_then_re_register_serves_fresh_response(self):
+        with aioresponses() as m:
+            m.get(self.url, status=200)
+            resp = await self.session.get(self.url)
+            self.assertEqual(resp.status, 200)
+
+            m.clear()
+
+            # Re-register with a different status to confirm a fresh match is used.
+            m.get(self.url, status=201)
+            resp = await self.session.get(self.url)
+            self.assertEqual(resp.status, 201)
