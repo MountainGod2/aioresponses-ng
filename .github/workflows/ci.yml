@@ -12,6 +12,9 @@ concurrency:
 
 jobs:
   test:
+    permissions:
+      contents: read
+
     strategy:
       fail-fast: false
       matrix:
@@ -41,6 +44,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          persist-credentials: false
 
       - name: Install uv
         uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
@@ -59,4 +64,5 @@ jobs:
       - name: Upload coverage
         uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7
         with:
-          file: coverage.xml
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: MountainGod2/aioresponses-ng
