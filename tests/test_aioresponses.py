@@ -632,7 +632,7 @@ class AIOResponsesTestCase(AsyncTestCase):
 
     async def test_possible_race_condition(self):
         async def random_sleep_cb(url, **kwargs):
-            await asyncio.sleep(uniform(0.1, 1))
+            await asyncio.sleep(uniform(0.1, 1))  # noqa: S311
             return CallbackResult(body="test")
 
         with aioresponses() as mocked:
@@ -671,9 +671,13 @@ class AIOResponsesRaiseForStatusSessionTestCase(AsyncTestCase):
         condition=Version("3.9.0") > AIOHTTP_VERSION, reason="aiohttp<3.9.0 does not support callable raise_for_status"
     )
     async def test_callable_raise_for_status(self, m):
+        class CallableRaiseForStatusError(Exception):
+            def __init__(self):
+                super().__init__("callable raise_for_status")
+
         async def raise_for_status(response: ClientResponse):
-            if response.status >= 400:
-                raise Exception("callable raise_for_status")
+            if response.status >= 400:  # noqa: PLR2004
+                raise CallableRaiseForStatusError()
 
         m.get(self.url, status=400)
         with self.assertRaises(Exception) as cm:

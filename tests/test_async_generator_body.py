@@ -10,9 +10,13 @@ async def test_async_generator_body_exception():
     with aioresponses() as m:
         m.post(url)
 
+        class GeneratorNotAwaitedError(RuntimeError):
+            def __init__(self):
+                super().__init__("this generator is never awaited")
+
         async def data_generator():
             yield b"foo"
-            raise RuntimeError("this generator is never awaited")
+            raise GeneratorNotAwaitedError()
 
         with pytest.raises(RuntimeError, match="never awaited"):
             async with ClientSession() as session:
