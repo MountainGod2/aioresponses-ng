@@ -129,7 +129,7 @@ class RequestMatch:
             raw_headers.append((k.encode("utf8"), v.encode("utf8")))
         return tuple(raw_headers)
 
-    def _prepare_request_headers(self, headers: typedefs.LooseHeaders | None) -> "CIMultiDict[str]":
+    def _prepare_request_headers(self, headers: typedefs.LooseHeaders | None) -> CIMultiDict[str]:
         """Convert headers from aiohttp _request method to CIMultiDict."""
         result = CIMultiDict()
         if headers:
@@ -433,7 +433,7 @@ class aioresponses:
 
     def assert_any_call(
         self,
-        url: "URL | str | Pattern",
+        url: URL | str | Pattern,
         method: str = hdrs.METH_GET,
         args_to_match: Sequence[str] | None = None,
         *args: Any,

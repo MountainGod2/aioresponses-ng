@@ -49,10 +49,9 @@ class TestAIOResponses:
         ],
     )
     async def test_shortcut_method(self, http_method: str) -> None:
-        with patch("aioresponses.aioresponses.add") as mocked:
-            with aioresponses() as m:
-                getattr(m, http_method.lower())(self.url)
-                mocked.assert_called_once_with(self.url, method=http_method)
+        with patch("aioresponses.aioresponses.add") as mocked, aioresponses() as m:
+            getattr(m, http_method.lower())(self.url)
+            mocked.assert_called_once_with(self.url, method=http_method)
 
     # ------------------------------------------------------------------
     # Response basics
@@ -675,12 +674,12 @@ class TestRaiseForStatusSession:
                 super().__init__("callable raise_for_status")
 
         async def raise_for_status(response: ClientResponse) -> None:
-            if response.status >= 400:  # noqa: PLR2004
+            if response.status >= 400:
                 raise CallableRaiseForStatusError
 
         with aioresponses() as m:
             m.get(self.url, status=400)
-            with pytest.raises(Exception, match="callable raise_for_status"):  # noqa: B017
+            with pytest.raises(Exception, match="callable raise_for_status"):
                 await self.session.get(self.url, raise_for_status=raise_for_status)
 
 
