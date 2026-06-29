@@ -20,8 +20,6 @@ from aioresponses.core import AIOHTTP_VERSION
 
 
 class TestAIOResponses:
-    """Core aioresponses mock behaviour tests."""
-
     @pytest.fixture(autouse=True)
     async def _setup(self):
         self.url = "http://example.com/api?foo=bar#fragment"
@@ -31,10 +29,6 @@ class TestAIOResponses:
 
     async def request(self, url: str) -> ClientResponse:
         return await self.session.get(url)
-
-    # ------------------------------------------------------------------
-    # Shortcut methods
-    # ------------------------------------------------------------------
 
     @pytest.mark.parametrize(
         "http_method",
@@ -52,10 +46,6 @@ class TestAIOResponses:
         with patch("aioresponses.aioresponses.add") as mocked, aioresponses() as m:
             getattr(m, http_method.lower())(self.url)
             mocked.assert_called_once_with(self.url, method=http_method)
-
-    # ------------------------------------------------------------------
-    # Response basics
-    # ------------------------------------------------------------------
 
     async def test_returned_instance(self) -> None:
         with aioresponses() as m:
@@ -200,10 +190,6 @@ class TestAIOResponses:
             content = await resp.read()
         assert content == body
 
-    # ------------------------------------------------------------------
-    # Context-manager and decorator usage
-    # ------------------------------------------------------------------
-
     async def test_mocking_as_context_manager(self) -> None:
         with aioresponses() as aiomock:
             aiomock.add(self.url, payload={"foo": "bar"})
@@ -221,7 +207,6 @@ class TestAIOResponses:
         assert payload == {"foo": "bar"}
 
     async def test_mocking_as_decorator(self) -> None:
-        """@aioresponses() as a decorator – mock injected as trailing positional arg."""
         url = self.url
 
         @aioresponses()
@@ -246,15 +231,11 @@ class TestAIOResponses:
 
     async def test_mocking_as_decorator_wrong_mocked_arg_name(self) -> None:
         @aioresponses(param="foo")
-        def foo(bar):  # noqa: ANN001
+        def foo(bar):
             pass
 
         with pytest.raises(TypeError, match="got an unexpected keyword argument 'foo'"):
             foo()
-
-    # ------------------------------------------------------------------
-    # Error / exception handling
-    # ------------------------------------------------------------------
 
     async def test_unknown_request(self) -> None:
         with aioresponses() as aiomock:
@@ -273,7 +254,7 @@ class TestAIOResponses:
                 ("http://example.com/TimeoutError", TimeoutError),
             ]:
                 aiomock.get(url, exception=exc)
-                with pytest.raises(BaseException):  # noqa: B017, PT011
+                with pytest.raises(BaseException):  # noqa: B017
                     await self.session.get(url)
 
             url = "http://example.com/HttpProcessingError"
@@ -307,12 +288,7 @@ class TestAIOResponses:
                 await self.session.get(self.url)
             assert (await self.session.get(self.url)).status == 200
 
-    # ------------------------------------------------------------------
-    # Multiple / repeated requests
-    # ------------------------------------------------------------------
-
     async def test_multiple_requests(self) -> None:
-        """Requests are stored in order sent, with snapshotted kwargs."""
         with aioresponses() as m:
             m.get(self.url, status=200)
             m.get(self.url, status=201)
@@ -370,10 +346,6 @@ class TestAIOResponses:
             with pytest.raises(RuntimeError, match="Session is closed"):
                 await coro
 
-    # ------------------------------------------------------------------
-    # Pass-through
-    # ------------------------------------------------------------------
-
     async def test_address_as_instance_of_url_combined_with_pass_through(self) -> None:
         app = web.Application()
 
@@ -410,10 +382,6 @@ class TestAIOResponses:
         assert ext.status == 200
         assert "foo=bar" in str(ext.url)
 
-    # ------------------------------------------------------------------
-    # Custom response class
-    # ------------------------------------------------------------------
-
     async def test_custom_response_class(self) -> None:
         class CustomClientResponse(ClientResponse):
             pass
@@ -423,10 +391,6 @@ class TestAIOResponses:
             resp = await self.session.get(self.url)
 
         assert isinstance(resp, CustomClientResponse)
-
-    # ------------------------------------------------------------------
-    # Regexp matching
-    # ------------------------------------------------------------------
 
     async def test_request_should_match_regexp(self) -> None:
         with aioresponses() as mocked:
@@ -439,10 +403,6 @@ class TestAIOResponses:
             mocked.get(re.compile(r"^http://exampleexample\.com/api\?foo=.*$"), payload={}, status=200)
             with pytest.raises(ClientConnectionError):
                 await self.request(self.url)
-
-    # ------------------------------------------------------------------
-    # Timeout / callbacks
-    # ------------------------------------------------------------------
 
     async def test_timeout(self) -> None:
         with aioresponses() as mocked:
@@ -517,10 +477,6 @@ class TestAIOResponses:
 
         assert len(captured) == 1
         assert captured[0]["data"] == b"raw payload"
-
-    # ------------------------------------------------------------------
-    # Assertion helpers
-    # ------------------------------------------------------------------
 
     async def test_assert_not_called(self) -> None:
         with aioresponses() as m:
@@ -624,10 +580,6 @@ class TestAIOResponses:
             assert requests[0].args == ()
             assert requests[0].kwargs == kwargs
 
-    # ------------------------------------------------------------------
-    # Concurrency
-    # ------------------------------------------------------------------
-
     async def test_possible_race_condition(self) -> None:
         async def random_sleep_cb(url, **kwargs):
             await asyncio.sleep(uniform(0.01, 0.1))  # noqa: S311
@@ -642,8 +594,6 @@ class TestAIOResponses:
 
 
 class TestRaiseForStatusSession:
-    """Tests for ClientSession(raise_for_status=True)."""
-
     @pytest.fixture(autouse=True)
     async def _setup(self):
         self.url = "http://example.com/api?foo=bar#fragment"
@@ -684,8 +634,6 @@ class TestRaiseForStatusSession:
 
 
 class TestAIOResponseRedirect:
-    """Redirect-following and pass-through tests."""
-
     @pytest.fixture(autouse=True)
     async def _setup(self):
         self.url = "http://10.1.1.1:8080/redirect"
@@ -719,7 +667,9 @@ class TestAIOResponseRedirect:
     async def test_redirect_missing_mocked_match(self) -> None:
         with aioresponses() as rsps:
             rsps.get(self.url, status=307, headers={"Location": "https://httpbin.org"})
-            with pytest.raises(ClientConnectionError, match="Connection refused: GET http://10.1.1.1:8080/redirect"):
+            with pytest.raises(
+                ClientConnectionError, match=re.escape("Connection refused: GET http://10.1.1.1:8080/redirect")
+            ):
                 await self.session.get(self.url, allow_redirects=True)
 
     async def test_redirect_missing_location_header(self) -> None:
@@ -782,8 +732,6 @@ class TestAIOResponseRedirect:
 
 
 class TestAIOResponsesAssertions:
-    """Fine-grained assertion-helper tests."""
-
     @pytest.fixture(autouse=True)
     async def _setup(self):
         self.url = "http://example.com/api"
