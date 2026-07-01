@@ -881,3 +881,14 @@ class TestAIOResponsesAssertions:
 
             m.get(self.url, status=201)
             assert (await self.session.get(self.url)).status == 201
+
+    async def test_assert_called_with_arg_to_match_not_supplied(self) -> None:
+        with aioresponses() as m:
+            m.post(self.url, status=200)
+            await self.session.post(self.url, headers={"User-Agent": "aioresponses"})
+            with pytest.raises(AssertionError):
+                m.assert_called_once_with(
+                    self.url,
+                    method="POST",
+                    args_to_match=["headers"],
+                )

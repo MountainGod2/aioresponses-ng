@@ -422,7 +422,8 @@ class aioresponses:
 
         if args_to_match is not None:
             raise_error = any(
-                arg not in actual.kwargs or actual.kwargs[arg] != expected.kwargs[arg] for arg in args_to_match
+                arg not in actual.kwargs or arg not in expected.kwargs or actual.kwargs[arg] != expected.kwargs[arg]
+                for arg in args_to_match
             )
         else:
             raise_error = actual != expected
@@ -459,7 +460,8 @@ class aioresponses:
         for actual in request_list:
             if args_to_match is not None:
                 match = not any(
-                    arg not in actual.kwargs or actual.kwargs[arg] != expected.kwargs[arg] for arg in args_to_match
+                    arg not in actual.kwargs or arg not in expected.kwargs or actual.kwargs[arg] != expected.kwargs[arg]
+                    for arg in args_to_match
                 )
             else:
                 match = actual == expected
