@@ -89,6 +89,7 @@ select = [
     "ASYNC", # flake8-async
     "S",     # flake8-bandit
     "TRY",   # tryceratops
+    "RUF",   # ruff
 ]
 ignore = ["COM812"]
 
