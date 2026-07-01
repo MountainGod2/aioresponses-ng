@@ -260,14 +260,14 @@ class aioresponses:
         )
         self.requests = {}
 
-    def __enter__(self):
+    def __enter__(self) -> "aioresponses":
         self.start()
         return self
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         self.stop()
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "aioresponses":
         self.start()
         return self
 
