@@ -11,7 +11,7 @@ class _MockResponseHandler(ResponseHandler):
     """ResponseHandler that no-ops pause_reading for mock contexts."""
 
     def pause_reading(self) -> None:
-        pass
+        pass  # pragma: no cover - defensive edge case
 
 
 def stream_reader_factory(loop=None) -> StreamReader:
