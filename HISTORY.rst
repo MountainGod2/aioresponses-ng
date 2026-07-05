@@ -2,6 +2,25 @@
 History
 =======
 
+0.8.2 (2026-07-05)
+-------------------
+
+* **Breaking change**: updated assertion APIs in ``aioresponses`` to support
+  partial-argument matching via ``args_to_match`` and corrected call matching
+  semantics for ``assert_any_call``
+* Fixed call-count assertions to count total recorded calls across all
+  method/URL keys (not just grouped buckets)
+* Fixed ``assert_not_called`` message count to reflect actual recorded requests
+* Updated ``__version__`` to use package metadata at runtime via
+  ``importlib.metadata.version("aioresponses-ng")`` with a safe fallback when
+  metadata is unavailable
+* Refactored the test suite from legacy unittest/ddt helpers to modern
+  ``pytest`` patterns, removed obsolete compatibility tests, and expanded
+  assertion/callback coverage
+* Tightened linting/tooling configuration (additional Ruff rule sets,
+  pytest-asyncio defaults) and refreshed GitHub Actions workflows with stricter
+  permissions and updated pinned actions
+
 0.8.1 (2026-06-26)
 -------------------
 
